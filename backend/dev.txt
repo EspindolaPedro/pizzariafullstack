@@ -1,0 +1,195 @@
+checklist:
+[X] Criar o banco de dados
+[X] Criar usuário
+[X] Logar usuário
+[X] middleware de autenticação 
+[X] Retornar dados do usuário (pelo id e selecionar apenas o essencial)
+
+[X] Criar categoria
+[X] Listar categoria
+
+[X] Criar produto
+[X] Criar middleware para add fotos do produto
+[X] Listar todos os produtos por categoria
+
+[X] Criar um pedido/mesa
+[X] Excluir um pedido/mesa
+ -Não podemos excluir uma mesa se tiver pedidos em aberto
+
+[X] Enviar order (retirar de rascunho)
+[X] Listar todos os pedidos que não estão em rascunho e status como false
+
+[X] Acessar detalhes de uma mesa e os pedidos desta mesa
+[X] Concluir pedido
+
+
+
+
+
+instalado e configurado as rotas, cors, erros
+
+prisma como orm
+npm intsll prisma
+npm install @prisma/client
+
+configurado no dotenv o acesso ao db
+crie uma pasta prisma e :
+import { PrismaClient } from '@prisma/client';
+
+const prismaClient = new PrismaClient();
+
+export default prismaClient;
+
+db:
+Login
+
+User: 
+id String - UUID 
+name
+email
+password
+created_at
+updated_at
+
+Category:
+id
+name 
+created_at
+updated_at
+
+Products:
+id str
+name str
+price str
+description str
+banner str
+
+Category (FK)
+created_at datatime
+updated_at datatime
+
+order
+id
+table int
+status bool
+draft bool
+name? String
+
+orderItem:
+id
+amount
+
+order_id
+product_id
+
+No .env configura a conexáo com o db: 
+DATABASE_URL="postgresql://postgres:1234@localhost:5432/pizzaria?schema=public"
+
+mapeiar e criar migrations:
+Na pasta prisma > schema_prisma >
+model User {
+  id String @id @default(uuid())
+  name String
+  email String
+  password String
+  created_at DateTime? @default(now())
+  updated_at DateTime? @default(now())
+
+  @@map("users")
+}
+
+
+criar a migration:
+npx prisma migrate dev
+
+de um nome a migration, ex: create_table_users
+
+Referenciando as tabelas
+
+model Item {
+  id String @id @default(uuid())
+
+  order Order @relation(fields: [order_id], references: [id])
+  product Product @relation(fields: [product_id], references: [id])
+  @@map("item")
+
+  order_id String
+  product_id String
+}
+
+
+model Product {
+    id String @id @default(uuid())
+
+    category Category @relation(fields: [category_id], references: [id]) //Referënciando a categoria que pode estar em varios produtos, A categoria id referencia o id da tabela categoria
+
+    @@map("products")
+    category_id String
+    item Item[]
+
+}
+
+
+No CreateUserService fazemos as verificações de usuário, se email já existe utilizamos a função await prismaClient.findFirst({ clausula, where, select... })
+
+Para criar um usuário usamos a função prismaClient.create({ data: { dados do user }, select: { dados de retorno } ... })
+
+para selecionar itens a ser retornado usamos o select: { }
+NUNCA RETORNAR A SENHA
+
+Para insertação de dados usamos o data: {}
+
+ex:
+ const order = await prismaClient.order.create({
+            data:{
+                table,
+                name
+            }
+        })
+
+para selecionar dados usamos o where: {}
+
+
+criptografia usamos a lib bcryptjs e @types/bcryptjs -D
+
+const hashpass = await hash(password, 8)
+
+Verificar o hash import { compare } from "bcryptjs";
+
+const passwordMatch = await compare(password, user.password);
+Após comparar verificar se retorna true ou false;
+Se der ok, gere um token com jsonwebtoken.
+
+ const token = sign({
+            name: user.name,
+            email: user.email
+        }, 
+        process.env.JWT_SECRET , {
+            subject: user.id,
+            expiresIn: '30d'
+        })
+
+No middleware de verificação do token
+
+if (!authToken) { //verifica se há token
+        return res.status(401).end();
+    }
+    const [, token] = authToken.split(" ") //divide em array e pega o segundo item
+
+    try {
+        const { sub } = verify( //sub pega do payload o id do usuario
+            token,
+            process.env.JWT_SECRET,
+        ) as Payload;
+       req.user_id  = sub; //user_id é um váriavel que criamos para nos armazer na request.
+       return next();
+
+    }
+
+para criar nossos próprios types, criei dentro de src um pasta @type e a pasta express
+um arquivo file.d.ts
+declare namespace Express { //declaramos um namespace
+    export interface Request {
+        user_id: string; // define a variavel
+    }
+}
